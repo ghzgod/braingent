@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Braingent</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --secondary-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #7e57c2;
+            --border-color: #333333;
+            --input-bg: #252525;
+            --modal-bg: #1e1e1e;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+            --prefrontal-cortex: #ff5252;
+            --amygdala: #ffb142;
+            --hippocampus: #2ed573;
+            --temporal-lobe: #1e90ff;
+            --parietal-lobe: #5352ed;
+            --occipital-lobe: #7bed9f;
+            --cerebellum: #eccc68;
+            --brocas-area: #ff6b81;
+            --wernickes-area: #a4b0be;
+            --anterior-cingulate: #747d8c;
+            --thalamus: #ff9ff3;
+            --hypothalamus: #ffa502;
+            --basal-ganglia: #70a1ff;
+            --brainstem: #1dd1a1;
+            --insula: #5f27cd;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background-color: var(--secondary-bg);
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+        
+        h1 {
+            color: var(--accent-color);
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .config-icon {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.2rem;
+            color: var(--text-color);
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+        
+        .config-icon:hover {
+            opacity: 1;
+        }
+        
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .brain-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            position: relative;
+            max-width: 60%;
+        }
+        
+        .brain-visualization {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .brain-image-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .brain-base {
+            width: 80%;
+            max-width: 600px;
+            height: auto;
+        }
+        
+        .brain-region {
+            position: absolute;
+            opacity: 0.7;
+            transition: opacity 0.3s ease, filter 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .brain-region.active {
+            opacity: 1;
+            filter: brightness(1.5);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                opacity: 0.7;
+                filter: brightness(1);
+            }
+            50% {
+                opacity: 1;
+                filter: brightness(1.5);
+            }
+            100% {
+                opacity: 0.7;
+                filter: brightness(1);
+            }
+        }
+        
+        .legend {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: rgba(30, 30, 30, 0.8);
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            max-height: 50%;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.3rem;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 0.5rem;
+            border-radius: 3px;
+        }
+        
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--secondary-bg);
+            border-left: 1px solid var(--border-color);
+            padding: 1rem;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.8rem;
+            border-radius: 4px;
+        }
+        
+        .user-message {
+            background-color: var(--accent-color);
+            align-self: flex-end;
+            margin-left: 2rem;
+        }
+        
+        .system-message {
+            background-color: var(--input-bg);
+            align-self: flex-start;
+            margin-right: 2rem;
+        }
+        
+        .thinking-status {
+            font-style: italic;
+            margin-bottom: 0.5rem;
+            color: #aaa;
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        input[type="text"], select {
+            flex: 1;
+            padding: 0.8rem;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-color);
+            font-size: 1rem;
+        }
+        
+        button {
+            padding: 0.8rem 1.5rem;
+            background-color: var(--accent-color);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #6a4caf;
+        }
+        
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        
+        .options-container {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .toggle-option {
+            display: flex;
+            align-items: center;
+        }
+        
+        .toggle-option input {
+            margin-right: 0.5rem;
+        }
+        
+        .version-info {
+            position: absolute;
+            bottom: 0.5rem;
+            left: 0.5rem;
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+        
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal {
+            background-color: var(--modal-bg);
+            border-radius: 6px;
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .modal-header h2 {
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+        
+        .close-modal {
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: var(--text-color);
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+        
+        .close-modal:hover {
+            opacity: 1;
+        }
+        
+        .config-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .form-group label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .input-group input {
+            flex: 1;
+        }
+        
+        .connection-status {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .status-success {
+            color: var(--success-color);
+        }
+        
+        .status-error {
+            color: var(--error-color);
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.8rem;
+            margin-top: 1.5rem;
+        }
+        
+        .btn-secondary {
+            background-color: #555;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #666;
+        }
+        
+        /* For the brain region svg overlays */
+        .region-prefrontal-cortex { fill: var(--prefrontal-cortex); }
+        .region-amygdala { fill: var(--amygdala); }
+        .region-hippocampus { fill: var(--hippocampus); }
+        .region-temporal-lobe { fill: var(--temporal-lobe); }
+        .region-parietal-lobe { fill: var(--parietal-lobe); }
+        .region-occipital-lobe { fill: var(--occipital-lobe); }
+        .region-cerebellum { fill: var(--cerebellum); }
+        .region-brocas-area { fill: var(--brocas-area); }
+        .region-wernickes-area { fill: var(--wernickes-area); }
+        .region-anterior-cingulate-cortex { fill: var(--anterior-cingulate); }
+        .region-thalamus { fill: var(--thalamus); }
+        .region-hypothalamus { fill: var(--hypothalamus); }
+        .region-basal-ganglia { fill: var(--basal-ganglia); }
+        .region-brainstem { fill: var(--brainstem); }
+        .region-insula { fill: var(--insula); }
+        
+        /* Current connection info display */
+        .connection-info {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            font-size: 0.8rem;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .connection-info .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--error-color);
+        }
+        
+        .connection-info .status-indicator.connected {
+            background-color: var(--success-color);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="connection-info" id="connection-info">
+            <div class="status-indicator" id="status-indicator"></div>
+            <span id="connection-text">Not connected</span>
+        </div>
+        <h1>Braingent</h1>
+        <div class="subtitle">A neural network that simulates how a brain processes information</div>
+        <div class="config-icon" id="config-icon">
+            <i class="fas fa-cog"></i>
+        </div>
+    </header>
+    
+    <main>
+        <div class="brain-container">
+            <div class="brain-visualization">
+                <div class="brain-image-container">
+                    <!-- Base brain image (grayscale) -->
+                    <svg viewBox="0 0 800 600" class="brain-base">
+                        <!-- Brain outline -->
+                        <path d="M400,100 C550,100 650,250 650,350 C650,450 550,500 400,500 C250,500 150,450 150,350 C150,250 250,100 400,100" 
+                              fill="#333" stroke="#555" stroke-width="2"/>
+                        
+                        <!-- Brain fold details -->
+                        <path d="M250,200 C300,180 350,190 400,200 C450,210 500,180 550,200" 
+                              fill="none" stroke="#444" stroke-width="2"/>
+                        <path d="M250,250 C300,230 350,240 400,250 C450,260 500,230 550,250" 
+                              fill="none" stroke="#444" stroke-width="2"/>
+                        <path d="M250,300 C300,280 350,290 400,300 C450,310 500,280 550,300" 
+                              fill="none" stroke="#444" stroke-width="2"/>
+                        <path d="M250,350 C300,330 350,340 400,350 C450,360 500,330 550,350" 
+                              fill="none" stroke="#444" stroke-width="2"/>
+                        <path d="M300,400 C350,380 400,390 450,400 C500,410 530,380 550,400" 
+                              fill="none" stroke="#444" stroke-width="2"/>
+                    </svg>
+                    
+                    <!-- Brain regions (each as separate SVG) -->
+                    <svg viewBox="0 0 800 600" class="brain-region region-prefrontal-cortex">
+                        <path d="M340,120 C380,110 420,110 460,120 C480,130 490,150 490,180 C490,210 470,240 450,260 C430,280 370,280 350,260 C330,240 310,210 310,180 C310,150 320,130 340,120" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-amygdala">
+                        <ellipse cx="350" cy="340" rx="25" ry="20" opacity="0.7"/>
+                        <ellipse cx="450" cy="340" rx="25" ry="20" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-hippocampus">
+                        <path d="M325,360 C340,350 360,350 375,360 C385,370 385,380 375,390 C360,400 340,400 325,390 C315,380 315,370 325,360" opacity="0.7"/>
+                        <path d="M425,360 C440,350 460,350 475,360 C485,370 485,380 475,390 C460,400 440,400 425,390 C415,380 415,370 425,360" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-temporal-lobe">
+                        <path d="M250,280 C270,270 290,270 320,280 C340,290 350,310 350,330 C350,350 340,370 320,380 C290,390 270,390 250,380 C230,370 220,350 220,330 C220,310 230,290 250,280" opacity="0.7"/>
+                        <path d="M550,280 C530,270 510,270 480,280 C460,290 450,310 450,330 C450,350 460,370 480,380 C510,390 530,390 550,380 C570,370 580,350 580,330 C580,310 570,290 550,280" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-parietal-lobe">
+                        <path d="M340,180 C370,170 430,170 460,180 C490,200 500,230 500,260 C500,290 480,320 460,340 C430,360 370,360 340,340 C320,320 300,290 300,260 C300,230 310,200 340,180" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-occipital-lobe">
+                        <path d="M350,400 C370,390 430,390 450,400 C470,410 480,430 480,450 C480,470 460,480 400,480 C340,480 320,470 320,450 C320,430 330,410 350,400" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-cerebellum">
+                        <ellipse cx="400" cy="440" rx="60" ry="30" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-brocas-area">
+                        <path d="M270,220 C280,210 300,210 310,220 C320,230 320,250 310,260 C300,270 280,270 270,260 C260,250 260,230 270,220" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-wernickes-area">
+                        <path d="M530,220 C520,210 500,210 490,220 C480,230 480,250 490,260 C500,270 520,270 530,260 C540,250 540,230 530,220" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-anterior-cingulate-cortex">
+                        <path d="M380,220 C390,210 410,210 420,220 C430,230 430,240 420,250 C410,260 390,260 380,250 C370,240 370,230 380,220" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-thalamus">
+                        <ellipse cx="370" cy="300" rx="20" ry="15" opacity="0.7"/>
+                        <ellipse cx="430" cy="300" rx="20" ry="15" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-hypothalamus">
+                        <ellipse cx="400" cy="320" rx="15" ry="10" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-basal-ganglia">
+                        <path d="M360,270 C370,260 390,260 400,270 C410,280 410,290 400,300 C390,310 370,310 360,300 C350,290 350,280 360,270" opacity="0.7"/>
+                        <path d="M400,270 C410,260 430,260 440,270 C450,280 450,290 440,300 C430,310 410,310 400,300 C390,290 390,280 400,270" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-brainstem">
+                        <path d="M390,400 C400,390 410,390 420,400 C425,410 425,430 420,450 C415,470 405,470 400,470 C395,470 385,470 380,450 C375,430 375,410 380,400 C385,390 395,390 390,400" opacity="0.7"/>
+                    </svg>
+                    
+                    <svg viewBox="0 0 800 600" class="brain-region region-insula">
+                        <ellipse cx="320" cy="300" rx="15" ry="25" opacity="0.7"/>
+                        <ellipse cx="480" cy="300" rx="15" ry="25" opacity="0.7"/>
+                    </svg>
+                </div>
+                
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--prefrontal-cortex)"></div>
+                        <div>Prefrontal Cortex</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--amygdala)"></div>
+                        <div>Amygdala</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--hippocampus)"></div>
+                        <div>Hippocampus</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--temporal-lobe)"></div>
+                        <div>Temporal Lobe</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--parietal-lobe)"></div>
+                        <div>Parietal Lobe</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--occipital-lobe)"></div>
+                        <div>Occipital Lobe</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--cerebellum)"></div>
+                        <div>Cerebellum</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--brocas-area)"></div>
+                        <div>Broca's Area</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--wernickes-area)"></div>
+                        <div>Wernicke's Area</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--anterior-cingulate)"></div>
+                        <div>Anterior Cingulate Cortex</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--thalamus)"></div>
+                        <div>Thalamus</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--hypothalamus)"></div>
+                        <div>Hypothalamus</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--basal-ganglia)"></div>
+                        <div>Basal Ganglia</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--brainstem)"></div>
+                        <div>Brainstem</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--insula)"></div>
+                        <div>Insula</div>
+                    </div>
+                </div>
+                
+                <div class="version-info" id="version-info">v1.0.0</div>
+            </div>
+        </div>
+        
+        <div class="chat-container">
+            <div class="chat-messages" id="messages"></div>
+            <div id="status" class="thinking-status"></div>
+            
+            <div class="options-container">
+                <div class="toggle-option">
+                    <input type="checkbox" id="verbose-toggle">
+                    <label for="verbose-toggle">Show internal monologue</label>
+                </div>
+                <div class="toggle-option">
+                    <input type="checkbox" id="speed-toggle">
+                    <label for="speed-toggle">Fast thinking</label>
+                </div>
+            </div>
+            
+            <div class="input-container">
+                <input type="text" id="message-input" placeholder="Type your message...">
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Configuration Modal -->
+    <div class="modal-overlay" id="config-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Ollama Connection Settings</h2>
+                <div class="close-modal" id="close-modal">&times;</div>
+            </div>
+            <div class="config-form">
+                <div class="form-group">
+                    <label for="ollama-ip">Ollama IP Address</label>
+                    <input type="text" id="ollama-ip" placeholder="e.g., 192.168.1.4">
+                </div>
+                <div class="form-group">
+                    <label for="ollama-port">Port</label>
+                    <input type="number" id="ollama-port" placeholder="e.g., 11434">
+                </div>
+                <div class="input-group">
+                    <button id="test-connection" class="btn-secondary">Test Connection</button>
+                </div>
+                <div class="connection-status" id="connection-status"></div>
+                
+                <div class="form-group" id="model-selection-group" style="display: none;">
+                    <label for="ollama-model">Select Model</label>
+                    <select id="ollama-model">
+                        <option value="">Loading models...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-config" class="btn-secondary">Cancel</button>
+                <button id="save-config">Save Settings</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            const messagesContainer = document.getElementById('messages');
+            const statusElement = document.getElementById('status');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const verboseToggle = document.getElementById('verbose-toggle');
+            const speedToggle = document.getElementById('speed-toggle');
+            const versionElement = document.getElementById('version-info');
+            
+            // Configuration modal elements
+            const configIcon = document.getElementById('config-icon');
+            const configModal = document.getElementById('config-modal');
+            const closeModal = document.getElementById('close-modal');
+            const cancelConfig = document.getElementById('cancel-config');
+            const saveConfig = document.getElementById('save-config');
+            const ollamaIpInput = document.getElementById('ollama-ip');
+            const ollamaPortInput = document.getElementById('ollama-port');
+            const testConnectionBtn = document.getElementById('test-connection');
+            const connectionStatus = document.getElementById('connection-status');
+            const modelSelectionGroup = document.getElementById('model-selection-group');
+            const ollamaModelSelect = document.getElementById('ollama-model');
+            
+            // Connection info display
+            const connectionInfo = document.getElementById('connection-info');
+            const statusIndicator = document.getElementById('status-indicator');
+            const connectionText = document.getElementById('connection-text');
+            
+            let isProcessing = false;
+            let ollamaSettings = {
+                ip: '',
+                port: '',
+                model: '',
+                connected: false
+            };
+            
+            // Load saved settings from localStorage
+            function loadSavedSettings() {
+                const savedSettings = localStorage.getItem('ollamaSettings');
+                if (savedSettings) {
+                    ollamaSettings = JSON.parse(savedSettings);
+                    
+                    // Update UI with saved settings
+                    ollamaIpInput.value = ollamaSettings.ip || '';
+                    ollamaPortInput.value = ollamaSettings.port || '';
+                    
+                    // Update connection info display
+                    updateConnectionInfoDisplay();
+                    
+                    // Test connection with saved settings
+                    if (ollamaSettings.ip && ollamaSettings.port) {
+                        testOllamaConnection(ollamaSettings.ip, ollamaSettings.port, true);
+                    }
+                }
+            }
+            
+            // Update connection info display in header
+            function updateConnectionInfoDisplay() {
+                if (ollamaSettings.connected) {
+                    statusIndicator.classList.add('connected');
+                    connectionText.textContent = `Connected to ${ollamaSettings.ip}:${ollamaSettings.port} (${ollamaSettings.model})`;
+                } else {
+                    statusIndicator.classList.remove('connected');
+                    connectionText.textContent = 'Not connected to Ollama';
+                }
+            }
+            
+            // Test connection to Ollama server
+            function testOllamaConnection(ip, port, autoSelectModel = false) {
+                const apiUrl = `http://${ip}:${port}/api/tags`;
+                
+                connectionStatus.style.display = 'block';
+                connectionStatus.textContent = 'Testing connection...';
+                connectionStatus.className = 'connection-status';
+                
+                fetch(apiUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Connection successful
+                        connectionStatus.textContent = 'Connection successful! Models loaded.';
+                        connectionStatus.classList.add('status-success');
+                        
+                        // Populate model dropdown
+                        populateModelDropdown(data.models);
+                        modelSelectionGroup.style.display = 'block';
+                        
+                        // If auto-selecting and we have a saved model, select it
+                        if (autoSelectModel && ollamaSettings.model) {
+                            ollamaModelSelect.value = ollamaSettings.model;
+                        }
+                        
+                        // Update settings
+                        ollamaSettings.connected = true;
+                        updateConnectionInfoDisplay();
+                    })
+                    .catch(error => {
+                        // Connection failed
+                        connectionStatus.textContent = `Connection failed: ${error.message}`;
+                        connectionStatus.classList.add('status-error');
+                        modelSelectionGroup.style.display = 'none';
+                        
+                        // Update settings
+                        ollamaSettings.connected = false;
+                        updateConnectionInfoDisplay();
+                    });
+            }
+            
+            // Populate model dropdown
+            function populateModelDropdown(models) {
+                ollamaModelSelect.innerHTML = '';
+                
+                if (!models || models.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No models available';
+                    ollamaModelSelect.appendChild(option);
+                    return;
+                }
+                
+                // Add placeholder option
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.textContent = 'Select a model';
+                ollamaModelSelect.appendChild(placeholderOption);
+                
+                // Add model options
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = model.name;
+                    ollamaModelSelect.appendChild(option);
+                });
+            }
+            
+            // Save settings to localStorage
+            function saveSettings() {
+                // Update ollamaSettings object
+                ollamaSettings.ip = ollamaIpInput.value;
+                ollamaSettings.port = ollamaPortInput.value;
+                ollamaSettings.model = ollamaModelSelect.value;
+                
+                // Save to localStorage
+                localStorage.setItem('ollamaSettings', JSON.stringify(ollamaSettings));
+                
+                // Update connection info display
+                updateConnectionInfoDisplay();
+                
+                // Close modal
+                configModal.style.display = 'none';
+            }
+            
+            // Configuration modal event listeners
+            configIcon.addEventListener('click', function() {
+                configModal.style.display = 'flex';
+            });
+            
+            closeModal.addEventListener('click', function() {
+                configModal.style.display = 'none';
+            });
+            
+            cancelConfig.addEventListener('click', function() {
+                // Reset form to current settings
+                ollamaIpInput.value = ollamaSettings.ip || '';
+                ollamaPortInput.value = ollamaSettings.port || '';
+                
+                // Hide model selection if not connected
+                if (!ollamaSettings.connected) {
+                    modelSelectionGroup.style.display = 'none';
+                }
+                
+                // Clear status
+                connectionStatus.style.display = 'none';
+                
+                // Close modal
+                configModal.style.display = 'none';
+            });
+            
+            saveConfig.addEventListener('click', saveSettings);
+            
+            testConnectionBtn.addEventListener('click', function() {
+                const ip = ollamaIpInput.value.trim();
+                const port = ollamaPortInput.value.trim();
+                
+                if (ip && port) {
+                    testOllamaConnection(ip, port);
+                } else {
+                    connectionStatus.style.display = 'block';
+                    connectionStatus.textContent = 'IP address and port are required';
+                    connectionStatus.className = 'connection-status status-error';
+                }
+            });
+            
+            // Close modal when clicking outside
+            configModal.addEventListener('click', function(e) {
+                if (e.target === configModal) {
+                    configModal.style.display = 'none';
+                }
+            });
+            
+            // Fetch version from git
+            fetch('/version')
+                .then(response => response.json())
+                .then(data => {
+                    versionElement.textContent = data.version;
+                })
+                .catch(error => {
+                    console.error('Error fetching version:', error);
+                    // Default version if unable to fetch from git
+                    versionElement.textContent = 'v1.0.0';
+                });
+            
+            // Helper function to format brain region class name
+            function formatRegionClassName(regionName) {
+                return 'region-' + regionName.toLowerCase().replace(/\s+/g, '-');
+            }
+            
+            // Reset all brain regions (remove active class)
+            function resetBrainRegions() {
+                document.querySelectorAll('.brain-region').forEach(region => {
+                    region.classList.remove('active');
+                });
+            }
+            
+            // Activate specified brain regions
+            function activateBrainRegions(regions) {
+                resetBrainRegions();
+                
+                if (!regions || regions.length === 0) return;
+                
+                regions.forEach(regionName => {
+                    const className = formatRegionClassName(regionName);
+                    const regionElement = document.querySelector(`.${className}`);
+                    
+                    if (regionElement) {
+                        regionElement.classList.add('active');
+                    }
+                });
+            }
+            
+            // Activate a single brain region
+            function activateSingleRegion(regionName) {
+                if (!regionName) return;
+                
+                const className = formatRegionClassName(regionName);
+                const regionElement = document.querySelector(`.${className}`);
+                
+                if (regionElement) {
+                    // First dim all regions
+                    document.querySelectorAll('.brain-region').forEach(region => {
+                        if (region.classList.contains('active')) {
+                            region.style.opacity = '0.3';
+                        }
+                    });
+                    
+                    // Highlight the current region
+                    regionElement.style.opacity = '1';
+                }
+            }
+            
+            // Reset opacity for active regions
+            function resetRegionOpacity() {
+                document.querySelectorAll('.brain-region').forEach(region => {
+                    if (region.classList.contains('active')) {
+                        region.style.opacity = '0.7';
+                    }
+                });
+            }
+            
+            // Add a user message to the chat
+            function addUserMessage(message) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'user-message');
+                messageElement.textContent = message;
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            
+            // Add a system message to the chat
+            function addSystemMessage(message) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'system-message');
+                messageElement.textContent = message;
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            
+            // Send message to server
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                if (message && !isProcessing) {
+                    // Check if Ollama is configured
+                    if (!ollamaSettings.connected || !ollamaSettings.model) {
+                        addSystemMessage("Please configure Ollama connection settings first by clicking the gear icon.");
+                        return;
+                    }
+                    
+                    isProcessing = true;
+                    addUserMessage(message);
+                    messageInput.value = '';
+                    sendButton.disabled = true;
+                    statusElement.textContent = 'Thinking...';
+                    resetBrainRegions();
+                    
+                    // Send message to server with Ollama settings
+                    fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: message,
+                            verbose: verboseToggle.checked,
+                            fastThinking: speedToggle.checked,
+                            ollama: {
+                                api_url: `http://${ollamaSettings.ip}:${ollamaSettings.port}`,
+                                model: ollamaSettings.model
+                            }
+                        })
+                    });
+                }
+            }
+            
+            // Event listeners
+            sendButton.addEventListener('click', sendMessage);
+            
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Socket.io event handlers
+            socket.on('processing_update', function(data) {
+                statusElement.textContent = data.message;
+                
+                if (data.active_regions) {
+                    activateBrainRegions(data.active_regions);
+                }
+                
+                if (data.active_region) {
+                    activateSingleRegion(data.active_region);
+                }
+            });
+            
+            socket.on('brain_thought', function(data) {
+                if (verboseToggle.checked) {
+                    const thoughtElement = document.createElement('div');
+                    thoughtElement.classList.add('message', 'system-message');
+                    thoughtElement.innerHTML = `<strong>${data.region}:</strong> ${data.thought}`;
+                    messagesContainer.appendChild(thoughtElement);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+                
+                if (data.active_regions) {
+                    activateBrainRegions(data.active_regions);
+                }
+                
+                resetRegionOpacity();
+            });
+            
+            socket.on('processing_complete', function(data) {
+                addSystemMessage(data.response);
+                statusElement.textContent = '';
+                isProcessing = false;
+                sendButton.disabled = false;
+                resetBrainRegions();
+                
+                // Focus on input for next message
+                messageInput.focus();
+            });
+            
+            // Load saved settings on page load
+            loadSavedSettings();
+        });
+    </script>
+</body>
+</html>
