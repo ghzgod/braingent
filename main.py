@@ -6,6 +6,7 @@ import time
 import threading
 import random
 import sys
+import concurrent.futures
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -17,8 +18,15 @@ class BrainAgent:
         self.api_url = api_url
         self.model = model
         
-    def think(self, context, prompt):
-        full_prompt = f"""
+    def think(self, context, prompt, fast_mode=False):
+        # Use simplified prompts in fast mode
+        if fast_mode:
+            full_prompt = f"""
+As the {self.name} (Role: {self.role}), give a very brief response (1-2 sentences) to: {prompt}
+Context: {context}
+"""
+        else:
+            full_prompt = f"""
 You are the {self.name} part of a human brain.
 Your role: {self.role}
 
@@ -55,8 +63,18 @@ class RouterAgent:
         self.api_url = api_url
         self.model = model
         
-    def determine_relevant_regions(self, user_input, all_regions):
-        prompt = f"""
+    def determine_relevant_regions(self, user_input, all_regions, fast_mode=False):
+        # In fast mode, use a simpler prompt and request fewer regions
+        if fast_mode:
+            prompt = f"""
+Determine which brain regions should process: "{user_input}"
+Available regions: {', '.join(all_regions.keys())}
+Return only JSON with region names and 0/1 values.
+Always include Prefrontal Cortex (1).
+In fast mode: select only 3-4 most essential regions.
+"""
+        else:
+            prompt = f"""
 You are a router in a human brain simulation. Your job is to determine which brain regions should be activated to process the following input:
 
 "{user_input}"
@@ -94,17 +112,45 @@ Be selective - only activate regions truly relevant to the input (typically 4-7 
                         json_str = response_text[start:end]
                         return json.loads(json_str)
                     else:
-                        # Fallback to activating all regions
-                        return {region: 1 for region in all_regions.keys()}
+                        # Fallback to activating essential regions
+                        if fast_mode:
+                            return self.get_essential_regions(all_regions)
+                        else:
+                            return {region: 1 for region in all_regions.keys()}
                 except json.JSONDecodeError:
-                    # Fallback to activating all regions
-                    return {region: 1 for region in all_regions.keys()}
+                    # Fallback to activating essential regions
+                    if fast_mode:
+                        return self.get_essential_regions(all_regions)
+                    else:
+                        return {region: 1 for region in all_regions.keys()}
             else:
-                # Fallback to activating all regions
-                return {region: 1 for region in all_regions.keys()}
+                # Fallback to activating essential regions
+                if fast_mode:
+                    return self.get_essential_regions(all_regions)
+                else:
+                    return {region: 1 for region in all_regions.keys()}
         except:
-            # Fallback to activating all regions
-            return {region: 1 for region in all_regions.keys()}
+            # Fallback to activating essential regions
+            if fast_mode:
+                return self.get_essential_regions(all_regions)
+            else:
+                return {region: 1 for region in all_regions.keys()}
+    
+    def get_essential_regions(self, all_regions):
+        # Core regions that are always needed for basic processing
+        essential_regions = {
+            "Prefrontal Cortex": 1,
+            "Hippocampus": 1,
+            "Temporal Lobe": 1,
+            "Wernicke's Area": 1
+        }
+        
+        # Fill with zeros for non-essential regions
+        for region in all_regions.keys():
+            if region not in essential_regions:
+                essential_regions[region] = 0
+                
+        return essential_regions
 
 class BrainSystem:
     def __init__(self, api_url, model):
@@ -119,7 +165,7 @@ class BrainSystem:
         agents = {
             "Prefrontal Cortex": BrainAgent(
                 "Prefrontal Cortex", 
-                "Executive function, decision-making, planning, working memory, impulse control, and coordination of other brain regions. As the supervisor agent, you integrate information from all regions and make final decisions.",
+                "Executive function, decision-making, planning, working memory, impulse control, and coordination of other brain regions. As the supervisor agent, you integrate information from all regions and make final decisions. All outputs to the user should be in FIRST person",
                 self.api_url,
                 self.model
             ),
@@ -210,16 +256,28 @@ class BrainSystem:
         }
         return agents
     
-    def process_input(self, user_input, verbose=False):
+    # Helper method to process a single region (for parallel processing)
+    def process_region(self, name, agent, context, user_input, thoughts, fast_mode):
+        thought = agent.think(context, user_input, fast_mode)
+        thoughts[name] = thought
+        return name, thought
+
+    def process_input(self, user_input, verbose=False, fast_thinking=False):
         # Get a dictionary of brain regions and their roles
         regions_info = {name: agent.role for name, agent in self.agents.items()}
         
         # Determine which brain regions to activate
         socketio.emit('processing_update', {'message': 'Routing input to relevant brain regions...'})
-        active_regions = self.router.determine_relevant_regions(user_input, regions_info)
+        active_regions = self.router.determine_relevant_regions(user_input, regions_info, fast_thinking)
         
         # Force Prefrontal Cortex to always be active
         active_regions["Prefrontal Cortex"] = 1
+        
+        # Ensure all values in active_regions are integers (0 or 1)
+        for region in active_regions:
+            if not isinstance(active_regions[region], int):
+                # If a region somehow got a non-integer value, convert it to 1 if it's truthy, 0 otherwise
+                active_regions[region] = 1 if active_regions[region] else 0
         
         # Log which regions are active
         active_region_names = [name for name, value in active_regions.items() if value == 1]
@@ -230,119 +288,191 @@ class BrainSystem:
         
         # Store thoughts from each region
         thoughts = {}
-        processed_count = 0
-        total_active = sum(active_regions.values())
         
-        # First round: Initial responses from all active regions except Prefrontal Cortex
-        for name, agent in self.agents.items():
-            if name != "Prefrontal Cortex" and active_regions.get(name, 0) == 1:
-                processed_count += 1
-                if verbose:
-                    socketio.emit('processing_update', {'message': f'Processing in {name}...'})
-                else:
-                    socketio.emit('processing_update', {
-                        'message': f'Thinking... ({processed_count}/{total_active})',
-                        'active_region': name
-                    })
-                
-                thought = agent.think("Initial processing", user_input)
-                thoughts[name] = thought
-                
-                if verbose:
-                    socketio.emit('brain_thought', {
-                        'region': name,
-                        'thought': thought,
-                        'active_regions': active_region_names
-                    })
-                
-                # Simulate processing time
-                time.sleep(0.5)
+        # Calculate total active regions correctly
+        total_active = sum(1 for value in active_regions.values() if value == 1)
         
-        # Compile all thoughts for the Prefrontal Cortex
-        context = "\n".join([f"{name}: {thought}" for name, thought in thoughts.items()])
-        
-        # Prefrontal Cortex integrates all inputs
-        if verbose:
-            socketio.emit('processing_update', {'message': f'Integrating in Prefrontal Cortex...'})
+        # In fast mode, skip intermediate steps and process in parallel
+        if fast_thinking:
+            # Process all active regions in parallel
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = []
+                for name, agent in self.agents.items():
+                    if name != "Prefrontal Cortex" and active_regions.get(name, 0) == 1:
+                        futures.append(
+                            executor.submit(
+                                self.process_region, 
+                                name, 
+                                agent, 
+                                "Fast processing mode", 
+                                user_input, 
+                                {}, 
+                                True
+                            )
+                        )
+                
+                # Process and update as regions complete
+                processed_count = 0
+                total_active = sum(active_regions.values())
+                
+                for future in concurrent.futures.as_completed(futures):
+                    processed_count += 1
+                    name, thought = future.result()
+                    thoughts[name] = thought
+                    
+                    if verbose:
+                        socketio.emit('brain_thought', {
+                            'region': name,
+                            'thought': thought,
+                            'active_regions': active_region_names
+                        })
+                    else:
+                        socketio.emit('processing_update', {
+                            'message': f'Fast thinking... ({processed_count}/{total_active-1})',
+                            'active_region': name
+                        })
+            
+            # Compile all thoughts for the Prefrontal Cortex
+            context = "\n".join([f"{name}: {thought}" for name, thought in thoughts.items()])
+            
+            # Prefrontal Cortex integrates all inputs
+            if verbose:
+                socketio.emit('processing_update', {'message': f'Fast integration in Prefrontal Cortex...'})
+            else:
+                socketio.emit('processing_update', {
+                    'message': f'Finalizing... ({total_active}/{total_active})',
+                    'active_region': 'Prefrontal Cortex'
+                })
+            
+            # Single step prefrontal processing in fast mode
+            prefrontal_thought = self.agents["Prefrontal Cortex"].think(context, user_input, True)
+            thoughts["Prefrontal Cortex"] = prefrontal_thought
+            
+            if verbose:
+                socketio.emit('brain_thought', {
+                    'region': 'Prefrontal Cortex',
+                    'thought': prefrontal_thought,
+                    'active_regions': active_region_names
+                })
+                
+            # Skip second round in fast mode and generate final response directly
+            response = self.generate_response(user_input, thoughts, {}, prefrontal_thought, active_region_names, fast_thinking)
+            
         else:
-            socketio.emit('processing_update', {
-                'message': f'Thinking... ({total_active}/{total_active})',
-                'active_region': 'Prefrontal Cortex'
-            })
-        
-        prefrontal_thought = self.agents["Prefrontal Cortex"].think(context, user_input)
-        thoughts["Prefrontal Cortex"] = prefrontal_thought
-        
-        if verbose:
-            socketio.emit('brain_thought', {
-                'region': 'Prefrontal Cortex',
-                'thought': prefrontal_thought,
-                'active_regions': active_region_names
-            })
-        
-        # Second round: Regions respond to Prefrontal's initial integration
-        updated_thoughts = {}
-        if verbose:
-            socketio.emit('processing_update', {'message': 'Second round of processing with prefrontal feedback'})
-        
-        processed_count = 0
-        for name, agent in self.agents.items():
-            if name != "Prefrontal Cortex" and active_regions.get(name, 0) == 1:
-                processed_count += 1
-                if verbose:
-                    socketio.emit('processing_update', {'message': f'Refining in {name}...'})
-                else:
-                    socketio.emit('processing_update', {
-                        'message': f'Refining thought... ({processed_count}/{total_active-1})',
-                        'active_region': name
-                    })
-                
-                updated_context = f"Prefrontal Cortex's integration: {prefrontal_thought}\nYour previous thought: {thoughts.get(name, '')}"
-                updated_thought = agent.think(updated_context, user_input)
-                updated_thoughts[name] = updated_thought
-                
-                if verbose:
-                    socketio.emit('brain_thought', {
-                        'region': name,
-                        'thought': updated_thought,
-                        'active_regions': active_region_names
-                    })
-                
-                # Simulate processing time
-                time.sleep(0.5)
-        
-        # Final integration by Prefrontal Cortex
-        if verbose:
-            socketio.emit('processing_update', {'message': 'Final integration by Prefrontal Cortex'})
-        else:
-            socketio.emit('processing_update', {
-                'message': 'Finalizing response...',
-                'active_region': 'Prefrontal Cortex'
-            })
-        
-        final_context = "\n".join([f"{name}: {thought}" for name, thought in updated_thoughts.items()])
-        final_thought = self.agents["Prefrontal Cortex"].think(
-            f"Your previous integration: {prefrontal_thought}\nUpdated context from brain regions:\n{final_context}", 
-            user_input
-        )
-        
-        if verbose:
-            socketio.emit('brain_thought', {
-                'region': 'Prefrontal Cortex',
-                'thought': final_thought,
-                'active_regions': active_region_names
-            })
-        
-        # Generate final response using all context
-        if verbose:
-            socketio.emit('processing_update', {'message': 'Generating final response'})
-        else:
-            socketio.emit('processing_update', {
-                'message': 'Generating response...',
-                'active_region': 'Prefrontal Cortex'
-            })
-        
-        response = self.generate_response(user_input, thoughts, updated_thoughts, final_thought, active_region_names)
+            # Original slower processing with more steps
+            processed_count = 0
+            total_active = sum(active_regions.values())
+            
+            # First round: Initial responses from all active regions except Prefrontal Cortex
+            for name, agent in self.agents.items():
+                if name != "Prefrontal Cortex" and active_regions.get(name, 0) == 1:
+                    processed_count += 1
+                    if verbose:
+                        socketio.emit('processing_update', {'message': f'Processing in {name}...'})
+                    else:
+                        socketio.emit('processing_update', {
+                            'message': f'Thinking... ({processed_count}/{total_active})',
+                            'active_region': name
+                        })
+                    
+                    thought = agent.think("Initial processing", user_input)
+                    thoughts[name] = thought
+                    
+                    if verbose:
+                        socketio.emit('brain_thought', {
+                            'region': name,
+                            'thought': thought,
+                            'active_regions': active_region_names
+                        })
+                    
+                    # Simulate processing time
+                    time.sleep(0.5)
+            
+            # Compile all thoughts for the Prefrontal Cortex
+            context = "\n".join([f"{name}: {thought}" for name, thought in thoughts.items()])
+            
+            # Prefrontal Cortex integrates all inputs
+            if verbose:
+                socketio.emit('processing_update', {'message': f'Integrating in Prefrontal Cortex...'})
+            else:
+                socketio.emit('processing_update', {
+                    'message': f'Thinking... ({total_active}/{total_active})',
+                    'active_region': 'Prefrontal Cortex'
+                })
+            
+            prefrontal_thought = self.agents["Prefrontal Cortex"].think(context, user_input)
+            thoughts["Prefrontal Cortex"] = prefrontal_thought
+            
+            if verbose:
+                socketio.emit('brain_thought', {
+                    'region': 'Prefrontal Cortex',
+                    'thought': prefrontal_thought,
+                    'active_regions': active_region_names
+                })
+            
+            # Second round: Regions respond to Prefrontal's initial integration
+            updated_thoughts = {}
+            if verbose:
+                socketio.emit('processing_update', {'message': 'Second round of processing with prefrontal feedback'})
+            
+            processed_count = 0
+            for name, agent in self.agents.items():
+                if name != "Prefrontal Cortex" and active_regions.get(name, 0) == 1:
+                    processed_count += 1
+                    if verbose:
+                        socketio.emit('processing_update', {'message': f'Refining in {name}...'})
+                    else:
+                        socketio.emit('processing_update', {
+                            'message': f'Refining thought... ({processed_count}/{total_active-1})',
+                            'active_region': name
+                        })
+                    
+                    updated_context = f"Prefrontal Cortex's integration: {prefrontal_thought}\nYour previous thought: {thoughts.get(name, '')}"
+                    updated_thought = agent.think(updated_context, user_input)
+                    updated_thoughts[name] = updated_thought
+                    
+                    if verbose:
+                        socketio.emit('brain_thought', {
+                            'region': name,
+                            'thought': updated_thought,
+                            'active_regions': active_region_names
+                        })
+                    
+                    # Simulate processing time
+                    time.sleep(0.5)
+            
+            # Final integration by Prefrontal Cortex
+            if verbose:
+                socketio.emit('processing_update', {'message': 'Final integration by Prefrontal Cortex'})
+            else:
+                socketio.emit('processing_update', {
+                    'message': 'Finalizing response...',
+                    'active_region': 'Prefrontal Cortex'
+                })
+            
+            final_context = "\n".join([f"{name}: {thought}" for name, thought in updated_thoughts.items()])
+            final_thought = self.agents["Prefrontal Cortex"].think(
+                f"Your previous integration: {prefrontal_thought}\nUpdated context from brain regions:\n{final_context}", 
+                user_input
+            )
+            
+            if verbose:
+                socketio.emit('brain_thought', {
+                    'region': 'Prefrontal Cortex',
+                    'thought': final_thought,
+                    'active_regions': active_region_names
+                })
+            
+            # Generate final response using all context
+            if verbose:
+                socketio.emit('processing_update', {'message': 'Generating final response'})
+            else:
+                socketio.emit('processing_update', {
+                    'message': 'Generating response...',
+                    'active_region': 'Prefrontal Cortex'
+                })
+            
+            response = self.generate_response(user_input, thoughts, updated_thoughts, final_thought, active_region_names, fast_thinking)
         
         # Add to conversation history
         self.conversation_history.append({"user": user_input, "response": response})
@@ -355,29 +485,46 @@ class BrainSystem:
         
         return response
     
-    def generate_response(self, user_input, thoughts, updated_thoughts, final_integration, active_regions):
+    def generate_response(self, user_input, thoughts, updated_thoughts, final_integration, active_regions, fast_thinking=False):
         # Compile all context - only include active regions
         active_thoughts = {name: thought for name, thought in thoughts.items() if name in active_regions or name == "Prefrontal Cortex"}
-        active_updated_thoughts = {name: thought for name, thought in updated_thoughts.items() if name in active_regions or name == "Prefrontal Cortex"}
         
-        context = (
-            f"User input: {user_input}\n\n"
-            f"Initial brain processing:\n" + 
-            "\n".join([f"{name}: {thought}" for name, thought in active_thoughts.items()]) +
-            f"\n\nUpdated brain processing:\n" + 
-            "\n".join([f"{name}: {thought}" for name, thought in active_updated_thoughts.items()]) +
-            f"\n\nFinal integration by Prefrontal Cortex: {final_integration}"
-        )
-        
-        # Add conversation history for context if available
-        history_context = ""
-        if self.conversation_history:
-            history_context = "Previous conversation:\n" + "\n".join([
-                f"User: {exchange['user']}\nSystem: {exchange['response']}" 
-                for exchange in self.conversation_history[-3:] # Include last 3 exchanges
-            ])
+        # In fast mode, use simplified prompt with fewer steps
+        if fast_thinking:
+            context = (
+                f"User input: {user_input}\n\n"
+                f"Brain processing:\n" + 
+                "\n".join([f"{name}: {thought}" for name, thought in active_thoughts.items()]) +
+                f"\n\nPrefrontal integration: {final_integration}"
+            )
             
-        prompt = f"""
+            prompt = f"""
+Generate a concise final response based on these brain regions' processing:
+{context}
+
+Final response:
+"""
+        else:
+            active_updated_thoughts = {name: thought for name, thought in updated_thoughts.items() if name in active_regions or name == "Prefrontal Cortex"}
+            
+            context = (
+                f"User input: {user_input}\n\n"
+                f"Initial brain processing:\n" + 
+                "\n".join([f"{name}: {thought}" for name, thought in active_thoughts.items()]) +
+                f"\n\nUpdated brain processing:\n" + 
+                "\n".join([f"{name}: {thought}" for name, thought in active_updated_thoughts.items()]) +
+                f"\n\nFinal integration by Prefrontal Cortex: {final_integration}"
+            )
+            
+            # Add conversation history for context if available
+            history_context = ""
+            if self.conversation_history:
+                history_context = "Previous conversation:\n" + "\n".join([
+                    f"User: {exchange['user']}\nSystem: {exchange['response']}" 
+                    for exchange in self.conversation_history[-3:] # Include last 3 exchanges
+                ])
+                
+            prompt = f"""
 Based on the internal processing of all brain regions, generate a final response to the user.
 The response should be coherent, balanced, and reflect the integrated processing of all regions.
 
@@ -409,11 +556,6 @@ Final response to user:
         except Exception as e:
             return f"I apologize, but something went wrong while processing your request: {str(e)}"
 
-# Initialize the brain system
-api_url = "http://192.168.1.4:3080"
-model = "deepseek-r1:latest"
-brain = BrainSystem(api_url, model)
-
 # Flask routes
 @app.route('/')
 def index():
@@ -424,10 +566,19 @@ def chat():
     data = request.json
     user_input = data.get('message', '')
     verbose = data.get('verbose', False)
+    fast_thinking = data.get('fastThinking', False)
+    
+    # Get Ollama configuration
+    ollama_config = data.get('ollama', {})
+    api_url = ollama_config.get('api_url', "http://localhost:11434")
+    model = ollama_config.get('model', "neural-chat")
+    
+    # Initialize brain with provided Ollama settings
+    brain = BrainSystem(api_url, model)
     
     # Process in a separate thread to allow for real-time updates
     def process_message():
-        brain.process_input(user_input, verbose)
+        brain.process_input(user_input, verbose, fast_thinking)
     
     thread = threading.Thread(target=process_message)
     thread.start()

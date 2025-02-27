@@ -232,6 +232,16 @@
             font-size: 1rem;
         }
         
+        input[type="number"] {
+            flex: 1;
+            padding: 0.8rem;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-color);
+            font-size: 1rem;
+        }
+        
         button {
             padding: 0.8rem 1.5rem;
             background-color: var(--accent-color);
@@ -510,7 +520,7 @@
                         <ellipse cx="400" cy="320" rx="15" ry="10" opacity="0.7"/>
                     </svg>
                     
-                    <svg viewBox="0 0 800 600" class="brain-region region-basal-ganglia">
+                    <svg viewBox="0 800 600" class="brain-region region-basal-ganglia">
                         <path d="M360,270 C370,260 390,260 400,270 C410,280 410,290 400,300 C390,310 370,310 360,300 C350,290 350,280 360,270" opacity="0.7"/>
                         <path d="M400,270 C410,260 430,260 440,270 C450,280 450,290 440,300 C430,310 410,310 400,300 C390,290 390,280 400,270" opacity="0.7"/>
                     </svg>
@@ -627,11 +637,12 @@
                     <input type="text" id="ollama-ip" placeholder="e.g., 192.168.1.4">
                 </div>
                 <div class="form-group">
-                    <label for="ollama-port">Port</label>
-                    <input type="number" id="ollama-port" placeholder="e.g., 11434">
+                    <label for="ollama-port">Ollama Port</label>
+                    <input type="number" id="ollama-port" placeholder="e.g., 11434" class="input-bg">
                 </div>
                 <div class="input-group">
                     <button id="test-connection" class="btn-secondary">Test Connection</button>
+                    <button id="restore-defaults" class="btn-secondary">Restore Defaults</button>
                 </div>
                 <div class="connection-status" id="connection-status"></div>
                 
@@ -669,6 +680,7 @@
             const ollamaIpInput = document.getElementById('ollama-ip');
             const ollamaPortInput = document.getElementById('ollama-port');
             const testConnectionBtn = document.getElementById('test-connection');
+            const restoreDefaultsBtn = document.getElementById('restore-defaults');
             const connectionStatus = document.getElementById('connection-status');
             const modelSelectionGroup = document.getElementById('model-selection-group');
             const ollamaModelSelect = document.getElementById('ollama-model');
@@ -693,8 +705,8 @@
                     ollamaSettings = JSON.parse(savedSettings);
                     
                     // Update UI with saved settings
-                    ollamaIpInput.value = ollamaSettings.ip || '';
-                    ollamaPortInput.value = ollamaSettings.port || '';
+                    ollamaIpInput.value = ollamaSettings.ip || '127.0.0.1';
+                    ollamaPortInput.value = ollamaSettings.port || '11434';
                     
                     // Update connection info display
                     updateConnectionInfoDisplay();
@@ -703,6 +715,10 @@
                     if (ollamaSettings.ip && ollamaSettings.port) {
                         testOllamaConnection(ollamaSettings.ip, ollamaSettings.port, true);
                     }
+                } else {
+                    // Set defaults for new users
+                    ollamaIpInput.value = '127.0.0.1';
+                    ollamaPortInput.value = '11434';
                 }
             }
             
@@ -844,6 +860,15 @@
                     connectionStatus.style.display = 'block';
                     connectionStatus.textContent = 'IP address and port are required';
                     connectionStatus.className = 'connection-status status-error';
+                }
+            });
+            
+            // Restore defaults button handler
+            restoreDefaultsBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to restore default connection settings (127.0.0.1:11434)?')) {
+                    ollamaIpInput.value = '127.0.0.1';
+                    ollamaPortInput.value = '11434';
+                    connectionStatus.style.display = 'none';
                 }
             });
             
