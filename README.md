@@ -34,18 +34,26 @@ Braingent (Brain agent) is an agentic neural network simulation that models how 
 ## Installation
 
 1. Clone the repository:
-    git clone https://github.com/yourusername/braingent.git
-    cd braingent
-
+   ```bash
+   git clone https://github.com/ghzgod/braingent.git
+   cd braingent
+   ```
 
 2. Install the required dependencies:
-    pip install -r requirements.txt
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 3. Run the application:
-    python main.py
+   ```bash
+   python main.py
+   ```
 
 4. Open your browser and navigate to:
-    http://localhost:5000 (or the IP:PORT you set in main.py flask app)
+   ```
+   http://localhost:5000
+   ```
+   (or the IP:PORT you set in main.py flask app)
 
 5. **Configure Ollama**: Click the gear icon and enter your Ollama server details
 
