@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+*.py[cod]
+*$py.class
+.env
+venv/
+env/
+.vscode/
+.idea/
+*.log
