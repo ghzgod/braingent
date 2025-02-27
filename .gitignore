@@ -16,4 +16,7 @@ env/
 .vscode/
 .idea/
 *.log
-*.DS_Store
+.DS_Store
+.python-version
+pyproject.toml
+uv.lock
